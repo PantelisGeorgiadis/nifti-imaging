@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nifti-imaging - NIFTI Viewer</title>
+    <script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="nifti-imaging.min.js"></script>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #1a1a2e;
+        color: #e0e0e0;
+        min-height: 100vh;
+      }
+
+      #app {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 24px;
+        gap: 20px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.6rem;
+        letter-spacing: 1px;
+        color: #a0c4ff;
+      }
+
+      .subtitle {
+        font-size: 0.85rem;
+        color: #888;
+        margin-top: -12px;
+      }
+
+      .drop-zone {
+        width: 100%;
+        max-width: 720px;
+        border: 2px dashed #4a90d9;
+        border-radius: 12px;
+        padding: 40px 24px;
+        text-align: center;
+        cursor: pointer;
+        transition: background 0.2s;
+        background: #16213e;
+      }
+
+      .drop-zone:hover,
+      .drop-zone.dragover {
+        background: #1f3460;
+      }
+
+      .drop-zone p {
+        margin: 0;
+        color: #aaa;
+        font-size: 0.95rem;
+      }
+
+      .drop-zone input[type='file'] {
+        display: none;
+      }
+
+      .viewer {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        width: 100%;
+        max-width: 900px;
+      }
+
+      .info-panel {
+        background: #16213e;
+        border-radius: 10px;
+        padding: 14px 20px;
+        width: 100%;
+        font-size: 0.82rem;
+        color: #ccc;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .info-label {
+        color: #7fa8d6;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.5px;
+      }
+
+      .canvas-container {
+        position: relative;
+        border: 1px solid #334;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #000;
+      }
+
+      canvas {
+        display: block;
+        cursor: crosshair;
+      }
+
+      .controls {
+        background: #16213e;
+        border-radius: 10px;
+        padding: 16px 24px;
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        align-items: center;
+      }
+
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex: 1;
+        min-width: 180px;
+      }
+
+      .control-group label {
+        font-size: 0.8rem;
+        color: #7fa8d6;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .control-group input[type='range'] {
+        width: 100%;
+        accent-color: #4a90d9;
+      }
+
+      .control-group .value-display {
+        font-size: 0.8rem;
+        color: #aaa;
+      }
+
+      .palette-select {
+        background: #0f3460;
+        border: 1px solid #4a90d9;
+        border-radius: 6px;
+        padding: 6px 10px;
+        color: #e0e0e0;
+        font-size: 0.85rem;
+        cursor: pointer;
+        flex: 1;
+        min-width: 140px;
+      }
+
+      .error-msg {
+        background: #3a1a1a;
+        border: 1px solid #c0392b;
+        border-radius: 8px;
+        padding: 12px 18px;
+        color: #e74c3c;
+        font-size: 0.9rem;
+      }
+
+      .wl-overlay {
+        position: absolute;
+        bottom: 8px;
+        right: 10px;
+        font-size: 0.75rem;
+        color: rgba(200, 220, 255, 0.85);
+        text-shadow: 0 0 4px #000;
+        pointer-events: none;
+      }
+
+      .loading {
+        color: #7fa8d6;
+        font-size: 0.9rem;
+        padding: 12px;
+      }
+
+      .footer-note {
+        font-size: 0.78rem;
+        color: #555;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="app">
+      <h1>nifti-imaging</h1>
+      <p class="subtitle">NIFTI Image Viewer</p>
+
+      <!-- Drop zone -->
+      <div
+        class="drop-zone"
+        :class="{ dragover: isDragging }"
+        @dragover.prevent="isDragging = true"
+        @dragleave.prevent="isDragging = false"
+        @drop.prevent="onDrop"
+        @click="$refs.fileInput.click()"
+      >
+        <p>
+          Drag &amp; drop a <strong>.nii</strong> or <strong>.nii.gz</strong> file here,<br />or
+          click to select
+        </p>
+        <input type="file" ref="fileInput" accept=".nii,.gz" @change="onFileChange" />
+      </div>
+
+      <!-- Error -->
+      <div v-if="errorMessage" class="error-msg">{{ errorMessage }}</div>
+
+      <!-- Loading -->
+      <div v-if="loading" class="loading">Loading...</div>
+
+      <!-- Viewer -->
+      <div v-if="niftiImage" class="viewer">
+        <!-- Info panel -->
+        <div class="info-panel">
+          <div class="info-item">
+            <span class="info-label">Dimensions</span>
+            <span>{{ width }} x {{ height }} x {{ numSlices }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Time Points</span>
+            <span>{{ numTimePoints }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Window</span>
+            <span>{{ windowVal.toFixed(1) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Level</span>
+            <span>{{ levelVal.toFixed(1) }}</span>
+          </div>
+        </div>
+
+        <!-- Canvas -->
+        <div class="canvas-container">
+          <img
+            :src="imageDataUrl"
+            :width="canvasWidth"
+            :height="canvasHeight"
+            draggable="false"
+            style="display: block; cursor: crosshair; user-select: none"
+            @mousedown.prevent="onMouseDown"
+            @mousemove="onMouseMove"
+            @mouseup="onMouseUp"
+            @mouseleave="onMouseUp"
+          />
+          <div class="wl-overlay">W:{{ windowVal.toFixed(0) }} L:{{ levelVal.toFixed(0) }}</div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+          <div class="control-group">
+            <label>Slice ({{ currentSlice + 1 }} / {{ numSlices }})</label>
+            <input
+              type="range"
+              min="0"
+              :max="numSlices - 1"
+              v-model.number="currentSlice"
+              @input="renderSlice"
+            />
+          </div>
+
+          <div class="control-group" v-if="numTimePoints > 1">
+            <label>Time Point ({{ currentTimePoint + 1 }} / {{ numTimePoints }})</label>
+            <input
+              type="range"
+              min="0"
+              :max="numTimePoints - 1"
+              v-model.number="currentTimePoint"
+              @input="renderSlice"
+            />
+          </div>
+
+          <div class="control-group">
+            <label>Color Palette</label>
+            <select class="palette-select" v-model="selectedPalette" @change="renderSlice">
+              <option value="GRAYSCALE">Grayscale</option>
+              <option value="HOT_IRON">Hot Iron</option>
+              <option value="PET_COLOR">PET Color</option>
+              <option value="HOT_METAL_BLUE">Hot Metal Blue</option>
+              <option value="PET_20_STEP">PET 20 Step</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <p class="footer-note">Nothing is uploaded anywhere.</p>
+    </div>
+
+    <script>
+      const { createApp } = Vue;
+
+      createApp({
+        data() {
+          return {
+            niftiImage: null,
+            width: 0,
+            height: 0,
+            numSlices: 1,
+            numTimePoints: 1,
+            currentSlice: 0,
+            currentTimePoint: 0,
+            selectedPalette: 'GRAYSCALE',
+            windowVal: 256,
+            levelVal: 128,
+            isDragging: false,
+            loading: false,
+            errorMessage: '',
+            // For mouse-drag window/level adjustment
+            _dragStartX: 0,
+            _dragStartY: 0,
+            _dragStartWindow: 0,
+            _dragStartLevel: 0,
+            _isDragging: false,
+            // Data URL rendered from the latest slice; bound to <img>.
+            imageDataUrl: '',
+          };
+        },
+
+        computed: {
+          canvasWidth() {
+            return Math.min(this.width, 700);
+          },
+          canvasHeight() {
+            return this.width > 0 ? Math.round((this.height / this.width) * this.canvasWidth) : 512;
+          },
+        },
+
+        methods: {
+          onDrop(e) {
+            this.isDragging = false;
+            const file = e.dataTransfer.files[0];
+            if (file) this.loadFile(file);
+          },
+
+          onFileChange(e) {
+            const file = e.target.files[0];
+            if (file) this.loadFile(file);
+          },
+
+          loadFile(file) {
+            this.errorMessage = '';
+            this.loading = true;
+            this.niftiImage = null;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              try {
+                const { NiftiImage } = niftiImaging;
+                const img = new NiftiImage(e.target.result);
+                this.niftiImage = img;
+                this.width = img.getWidth();
+                this.height = img.getHeight();
+                this.numSlices = img.getNumberOfSlices();
+                this.numTimePoints = img.getNumberOfTimePoints();
+                this.currentSlice = 0;
+                this.currentTimePoint = 0;
+                this.loading = false;
+                this.renderSlice();
+              } catch (err) {
+                this.loading = false;
+                this.errorMessage = 'Error: ' + err.message;
+              }
+            };
+            reader.onerror = () => {
+              this.loading = false;
+              this.errorMessage = 'Failed to read file.';
+            };
+            reader.readAsArrayBuffer(file);
+          },
+
+          renderSlice() {
+            if (!this.niftiImage) {
+              return;
+            }
+
+            const { WindowLevel } = niftiImaging;
+            // Use manual W/L only while the user is dragging; otherwise auto per-frame.
+            const wl = this._isDragging
+              ? new WindowLevel(this.windowVal, this.levelVal)
+              : undefined;
+
+            let result;
+            try {
+              result = this.niftiImage.render({
+                slice: this.currentSlice,
+                timePoint: this.currentTimePoint,
+                windowLevel: wl,
+                colorPalette: this.selectedPalette,
+              });
+            } catch (err) {
+              this.errorMessage = 'Render error: ' + err.message;
+              return;
+            }
+
+            this.windowVal = result.windowLevel.getWindow();
+            this.levelVal = result.windowLevel.getLevel();
+
+            // Draw to an off-screen canvas and produce a data URL.
+            // This is fully synchronous and needs no DOM refs or flush timing.
+            const offscreen = document.createElement('canvas');
+            offscreen.width = result.width;
+            offscreen.height = result.height;
+            offscreen
+              .getContext('2d')
+              .putImageData(
+                new ImageData(new Uint8ClampedArray(result.pixels), result.width, result.height),
+                0,
+                0
+              );
+            this.imageDataUrl = offscreen.toDataURL();
+          },
+
+          // Mouse drag for interactive window/level adjustment
+          onMouseDown(e) {
+            this._isDragging = true;
+            this._dragStartX = e.clientX;
+            this._dragStartY = e.clientY;
+            this._dragStartWindow = this.windowVal;
+            this._dragStartLevel = this.levelVal;
+          },
+
+          onMouseMove(e) {
+            if (!this._isDragging) return;
+            const dx = e.clientX - this._dragStartX;
+            const dy = e.clientY - this._dragStartY;
+            const sensitivity = 2;
+            this.windowVal = Math.max(1, this._dragStartWindow + dx * sensitivity);
+            this.levelVal = this._dragStartLevel - dy * sensitivity;
+            this.renderSlice();
+          },
+
+          onMouseUp() {
+            this._isDragging = false;
+          },
+        },
+      }).mount('#app');
+    </script>
+  </body>
+</html>

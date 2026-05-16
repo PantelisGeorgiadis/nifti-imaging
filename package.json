@@ -1,0 +1,69 @@
+{
+  "name": "nifti-imaging",
+  "version": "0.0.1",
+  "description": "Neuroimaging Informatics Technology Initiative (NIfTI) image rendering for Node.js and browser",
+  "main": "build/nifti-imaging.min.js",
+  "module": "build/nifti-imaging.min.js",
+  "types": "index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "npm run version && npm run lint && npm run test && npm run coverage && npm run webpack",
+    "clean": "shx rm -rf build coverage",
+    "coverage": "c8 --check-coverage --lines 90 --functions 90 --branches 90 --statements 90 --clean --reporter=text --reporter=html --include=src/*.js --exclude=src/index.js --exclude=src/version.js --exclude=src/log.js mocha test/**/*.test.js",
+    "lint": "eslint -c eslint.config.mjs --fix src && prettier --config prettier.config.mjs --write src/**/*.js test/**/*.js examples/**/*.{js,ts,html} *.{js,mjs,ts}",
+    "start": "npm run webpack",
+    "start:examples:web": "webpack serve --port 8080 --open --no-client-overlay-warnings --no-client-overlay-errors",
+    "test": "npm run test:node && npm run test:browser",
+    "test:browser": "karma start karma.config.mjs",
+    "test:node": "mocha test/**/*.test.js",
+    "version": "node -p -e \"'export default \\'' + require('./package.json').version + '\\';'\" > src/version.js",
+    "webpack": "webpack --progress --config webpack.config.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PantelisGeorgiadis/nifti-imaging.git"
+  },
+  "keywords": [
+    "NIfTI",
+    "Neuroimaging",
+    "medical imaging"
+  ],
+  "author": "Pantelis Georgiadis",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/PantelisGeorgiadis/nifti-imaging/issues"
+  },
+  "homepage": "https://github.com/PantelisGeorgiadis/nifti-imaging",
+  "dependencies": {
+    "loglevel": "^1.9.2",
+    "loglevel-plugin-prefix": "^0.8.4",
+    "nifti-reader-js": "^0.8.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "c8": "^11.0.0",
+    "chai": "^6.2.2",
+    "copy-webpack-plugin": "^14.0.0",
+    "eslint": "^10.3.0",
+    "globals": "^17.6.0",
+    "karma": "^6.4.4",
+    "karma-chrome-launcher": "^3.2.0",
+    "karma-mocha": "^2.0.1",
+    "karma-mocha-reporter": "^2.2.5",
+    "karma-webpack": "^5.0.1",
+    "mocha": "^11.7.5",
+    "pako": "^2.1.0",
+    "prettier": "^3.8.1",
+    "shx": "^0.4.0",
+    "terser-webpack-plugin": "^5.3.16",
+    "webpack": "^5.105.2",
+    "webpack-cli": "^7.0.2",
+    "webpack-dev-server": "^5.2.4"
+  },
+  "files": [
+    "build/nifti-imaging.min.js",
+    "build/index.html",
+    "index.d.ts"
+  ]
+}
